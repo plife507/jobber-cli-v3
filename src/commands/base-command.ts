@@ -118,6 +118,42 @@ export abstract class BaseCommand<TResult = unknown, TArgs = unknown> {
     // resources in v3 (HTTP connection reuse delegated to the runtime's
     // default fetch agent). Override if a subclass opens file handles etc.
   }
+
+  /**
+   * Resolve a job argument that may be either an encoded gid (starts with
+   * `Z2lkOi8v`, the base64 of `gid://`) or a numeric job number. Numeric
+   * inputs trigger a search via `jobs(searchTerm:)` and return the exact
+   * match. Ported from reference/jobber-cli/commands/_base.js:364-407.
+   */
+  protected async resolveJobId(jobArg: string | number | null | undefined): Promise<string> {
+    if (jobArg === null || jobArg === undefined || jobArg === '') {
+      throw new Error('Job number or encoded job id is required');
+    }
+    const asString = String(jobArg);
+    if (asString.startsWith('Z2lkOi8v')) {
+      return asString;
+    }
+    const ctx = await this.initialize();
+    const query = `
+      query SearchJob($searchTerm: String, $first: Int) {
+        jobs(searchTerm: $searchTerm, first: $first) {
+          nodes { id jobNumber }
+        }
+      }
+    `;
+    const result = await ctx.queryExecutor.execute<{
+      jobs: { nodes: Array<{ id: string; jobNumber: string | number }> };
+    }>(query, { searchTerm: asString, first: 5 }, { estimatedCost: 12, silent: true });
+    if (!result.success) {
+      throw new Error(`No job found for: ${asString}`);
+    }
+    const nodes = result.data?.jobs?.nodes ?? [];
+    const match = nodes.find((job) => String(job.jobNumber) === asString);
+    if (!match) {
+      throw new Error(`No job found for: ${asString}`);
+    }
+    return match.id;
+  }
 }
 
 function buildTokenProvider(config: Config, logger: Logger): () => Promise<string> {

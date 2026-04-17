@@ -61,6 +61,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 function bindArgs(commandName: string, parsed: ParsedArgs): Record<string, unknown> {
   const args: Record<string, unknown> = { ...parsed.flags };
   const positional = parsed._positional;
+  args._positional = positional;
   if (commandName === 'get') {
     if (positional[0]) args.type = positional[0];
     if (positional.length > 1) {
@@ -73,6 +74,17 @@ function bindArgs(commandName: string, parsed: ParsedArgs): Record<string, unkno
   } else if (commandName === 'token') {
     if (positional[0]) args.action = positional[0];
     if (positional[1]) args.token = positional[1];
+  } else if (commandName === 'query') {
+    if (positional[0]) args.query = positional.join(' ');
+  } else if (commandName === 'search') {
+    if (positional[0]) args.type = positional[0];
+    if (positional.length > 1) args.query = positional.slice(1).join(' ');
+  } else if (commandName === 'schema') {
+    if (positional[0]) args.subcommand = positional[0];
+    if (positional[1]) args.type = positional[1];
+  } else if (commandName === 'job-note' || commandName === 'job-expense') {
+    if (positional[0]) args.action = positional[0];
+    if (positional[1]) args.job = positional[1];
   }
   return args;
 }

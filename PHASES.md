@@ -9,7 +9,7 @@ Reference CLI: `reference/jobber-cli/` (v2.5.0, JS — cloned into this repo). P
 | 2 | GraphQL: JobberClient, codegen, typed QueryResult | ⏳ |
 | 3 | Schema: SchemaManager, SchemaCache, ErrorHandler | ⏳ |
 | 4 | BaseCommand + registry + status/token/get | ⏳ |
-| 5 | Remaining 13 commands | ⏳ |
+| 5 | Schema-based transport commands (7 total: query/search/notes/schema/doctor/job-note/job-expense) — report/calculation commands out of scope | ⏳ |
 | 6 | Tests, cutover, archive old CLI | ⏳ |
 
 ## Ground Rules
