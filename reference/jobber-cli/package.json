@@ -1,0 +1,32 @@
+{
+  "name": "jobber-cli",
+  "version": "2.5.0",
+  "description": "Unified CLI tool for Jobber GraphQL API with automatic rate limiting and schema exploration",
+  "type": "module",
+  "main": "bin/jobber",
+  "bin": {
+    "jobber": "./bin/jobber"
+  },
+  "scripts": {
+    "start": "node bin/jobber",
+    "test": "node --test test/*.test.js",
+    "test:live": "JOBBER_TEST_LIVE=1 node --test test/*.test.js"
+  },
+  "keywords": [
+    "jobber",
+    "graphql",
+    "api",
+    "cli",
+    "rate-limiting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "graphql": "^16.8.1",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

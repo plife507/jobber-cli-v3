@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jobber --version)",
+      "Bash(node bin/jobber --help)",
+      "Bash(awk '/async function showHelp/,/^}$/' /home/plife507/Projects/KC/jobber-cli/bin/jobber)",
+      "Bash(find . -type f -name \"*.js\" -not -path \"./node_modules/*\" -exec wc -l {} +)"
+    ]
+  }
+}
