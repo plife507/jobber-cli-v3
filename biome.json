@@ -1,6 +1,9 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
   "organizeImports": { "enabled": true },
+  "files": {
+    "ignore": ["src/types/graphql.ts", "reference/**", "dist/**", ".yarn/**"]
+  },
   "linter": {
     "enabled": true,
     "rules": {
