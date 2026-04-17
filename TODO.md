@@ -10,9 +10,9 @@ Authoritative operational doc for the v2.5 JS → v3.0 TS port. Drives day-to-da
 
 ## Active Phase
 
-**Phase 4 — BaseCommand + registry + status/token/get** → [`phases/phase-4-base-commands.md`](./phases/phase-4-base-commands.md)
+**Phase 5 — Remaining 13 commands** → [`phases/phase-5-commands.md`](./phases/phase-5-commands.md)
 
-Next: BaseCommand (composes Config + Logger + ThrottleManager + JobberClient + SchemaManager + ErrorHandler + OAuth refresh), plus three commands (`status`, `token`, `get`).
+Next: port the remaining commands (schema, query, search, notes, job-note, job-expense, creport, batch, sort-jobs, doctor, etc.) plus the deferred api-mapper / custom-fields-* modules. Phase 5 gates require the `JOBBER_WRITES_ENABLED=1` mutation-refusal proofs.
 
 ## Phase Status
 
@@ -22,8 +22,8 @@ Next: BaseCommand (composes Config + Logger + ThrottleManager + JobberClient + S
 | 1 | Core | [phase-1-core.md](./phases/phase-1-core.md) | complete | passed 2026-04-17 |
 | 2 | GraphQL client + codegen | [phase-2-graphql.md](./phases/phase-2-graphql.md) | complete | passed 2026-04-17 |
 | 3 | Schema + error handler | [phase-3-schema.md](./phases/phase-3-schema.md) | complete | passed 2026-04-17 (api-mapper + custom-fields-* deferred to phase 5) |
-| 4 | BaseCommand + registry + status/token/get | [phase-4-base-commands.md](./phases/phase-4-base-commands.md) | active | pending |
-| 5 | Remaining 13 commands | [phase-5-commands.md](./phases/phase-5-commands.md) | pending | pending (writes gate required) |
+| 4 | BaseCommand + registry + status/token/get | [phase-4-base-commands.md](./phases/phase-4-base-commands.md) | complete | passed 2026-04-17 (live run deferred; mock suite proves dispatch) |
+| 5 | Remaining 13 commands | [phase-5-commands.md](./phases/phase-5-commands.md) | active | pending (writes gate required) |
 | 6 | Tests + cutover + archive | [phase-6-cutover.md](./phases/phase-6-cutover.md) | pending | pending (writes gate required) |
 
 ## Rules of Engagement
