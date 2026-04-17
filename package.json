@@ -1,6 +1,6 @@
 {
   "name": "jobber-cli",
-  "version": "3.0.0-alpha.0",
+  "version": "3.0.0",
   "description": "TypeScript CLI for Jobber GraphQL API with automatic rate limiting and schema exploration",
   "type": "module",
   "bin": {

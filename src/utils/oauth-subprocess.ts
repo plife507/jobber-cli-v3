@@ -55,6 +55,16 @@ function defaultManagerPath(): string {
   return join(workspaceRoot, 'oauth', 'jobber_oauth_manager.py');
 }
 
+function detectWorkspaceVenvPython(): string | null {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const workspaceRoot = resolve(here, '..', '..', '..');
+  const linux = join(workspaceRoot, '.venv', 'bin', 'python');
+  const windows = join(workspaceRoot, '.venv', 'Scripts', 'python.exe');
+  if (existsSync(linux)) return linux;
+  if (existsSync(windows)) return windows;
+  return null;
+}
+
 /**
  * Run `python3 oauth/jobber_oauth_manager.py get-token` and return a
  * Zod-validated JWT token string. Throws OAuthSubprocessError on non-zero
@@ -62,11 +72,15 @@ function defaultManagerPath(): string {
  */
 export async function getAccessToken(options: GetTokenOptions = {}): Promise<string> {
   const managerPath = options.managerPath ?? defaultManagerPath();
-  const python = options.python ?? 'python3';
+  const envBag = options.env ?? process.env;
+  // Resolution order for the python interpreter: explicit option → JOBBER_OAUTH_PYTHON
+  // env var → workspace `.venv/bin/python` (auto-detected) → bare `python3`.
+  const python =
+    options.python ?? envBag.JOBBER_OAUTH_PYTHON ?? detectWorkspaceVenvPython() ?? 'python3';
   const timeoutMs = options.timeoutMs ?? 30_000;
   const spawnFn = options.spawnImpl ?? spawn;
   const spawnOpts: SpawnOptions = {
-    env: options.env ?? process.env,
+    env: envBag,
     stdio: ['ignore', 'pipe', 'pipe'],
   };
 

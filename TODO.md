@@ -10,9 +10,7 @@ Authoritative operational doc for the v2.5 JS → v3.0 TS port. Drives day-to-da
 
 ## Active Phase
 
-**Phase 6 — Tests + cutover + archive** → [`phases/phase-6-cutover.md`](./phases/phase-6-cutover.md)
-
-Next: hook up a live-gated integration matrix, bin smoke tests, writes-gate end-to-end proofs against the real API, README refresh, and finally `v3.0.0` tag + reference archival.
+**None — v3.0.0 shipped 2026-04-17.** Reference tree preserved for a future calculation-module port.
 
 ## Phase Status
 
@@ -23,8 +21,8 @@ Next: hook up a live-gated integration matrix, bin smoke tests, writes-gate end-
 | 2 | GraphQL client + codegen | [phase-2-graphql.md](./phases/phase-2-graphql.md) | complete | passed 2026-04-17 |
 | 3 | Schema + error handler | [phase-3-schema.md](./phases/phase-3-schema.md) | complete | passed 2026-04-17 |
 | 4 | BaseCommand + registry + status/token/get | [phase-4-base-commands.md](./phases/phase-4-base-commands.md) | complete | passed 2026-04-17 |
-| 5 | Schema-based transport commands (7 total) | [phase-5-commands.md](./phases/phase-5-commands.md) | complete | passed 2026-04-17 (scope narrowed 2026-04-17 — report/calculation commands permanently out of scope) |
-| 6 | Tests + cutover + archive | [phase-6-cutover.md](./phases/phase-6-cutover.md) | active | pending |
+| 5 | Schema-based transport commands (7 total) | [phase-5-commands.md](./phases/phase-5-commands.md) | complete | passed 2026-04-17 (scope narrowed — report/calculation commands permanently out of scope) |
+| 6 | Tests + cutover + release | [phase-6-cutover.md](./phases/phase-6-cutover.md) | complete | passed 2026-04-17 (live writes-gate proven on job 12241; v3.0.0 tag applied) |
 
 ## Rules of Engagement
 
