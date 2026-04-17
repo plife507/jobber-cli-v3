@@ -10,9 +10,9 @@ Authoritative operational doc for the v2.5 JS → v3.0 TS port. Drives day-to-da
 
 ## Active Phase
 
-**Phase 3 — Schema + error handler** → [`phases/phase-3-schema.md`](./phases/phase-3-schema.md)
+**Phase 4 — BaseCommand + registry + status/token/get** → [`phases/phase-4-base-commands.md`](./phases/phase-4-base-commands.md)
 
-Next: SchemaManager + SchemaCache + IncrementalIntrospector + ErrorHandler. Phase 2 left injection points (`SchemaSource`, `ErrorHandler`) that Phase 3 fills in.
+Next: BaseCommand (composes Config + Logger + ThrottleManager + JobberClient + SchemaManager + ErrorHandler + OAuth refresh), plus three commands (`status`, `token`, `get`).
 
 ## Phase Status
 
@@ -21,8 +21,8 @@ Next: SchemaManager + SchemaCache + IncrementalIntrospector + ErrorHandler. Phas
 | 0 | Scaffold | [phase-0-scaffold.md](./phases/phase-0-scaffold.md) | complete | passed (initial commit) |
 | 1 | Core | [phase-1-core.md](./phases/phase-1-core.md) | complete | passed 2026-04-17 |
 | 2 | GraphQL client + codegen | [phase-2-graphql.md](./phases/phase-2-graphql.md) | complete | passed 2026-04-17 |
-| 3 | Schema + error handler | [phase-3-schema.md](./phases/phase-3-schema.md) | active | pending |
-| 4 | BaseCommand + registry + status/token/get | [phase-4-base-commands.md](./phases/phase-4-base-commands.md) | pending | pending |
+| 3 | Schema + error handler | [phase-3-schema.md](./phases/phase-3-schema.md) | complete | passed 2026-04-17 (api-mapper + custom-fields-* deferred to phase 5) |
+| 4 | BaseCommand + registry + status/token/get | [phase-4-base-commands.md](./phases/phase-4-base-commands.md) | active | pending |
 | 5 | Remaining 13 commands | [phase-5-commands.md](./phases/phase-5-commands.md) | pending | pending (writes gate required) |
 | 6 | Tests + cutover + archive | [phase-6-cutover.md](./phases/phase-6-cutover.md) | pending | pending (writes gate required) |
 

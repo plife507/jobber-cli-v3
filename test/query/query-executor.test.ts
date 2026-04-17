@@ -68,7 +68,13 @@ describe('QueryExecutor', () => {
         message: err instanceof Error ? err.message : (err as { message: string }).message,
         suggestions: {
           hasSuggestions: true,
-          suggestions: ['Did you mean bar?'],
+          suggestions: [
+            {
+              type: 'field_replacement',
+              message: 'Did you mean one of these fields on Foo?',
+              options: [{ name: 'bar' }],
+            },
+          ],
         },
       }),
     };
@@ -84,7 +90,7 @@ describe('QueryExecutor', () => {
     expect(r.success).toBe(false);
     if (!r.success) {
       expect(r.suggestions).toHaveLength(1);
-      expect(r.suggestions[0]?.suggestions).toContain('Did you mean bar?');
+      expect(r.suggestions[0]?.suggestions?.[0]?.options?.[0]?.name).toBe('bar');
     }
   });
 

@@ -23,15 +23,37 @@ export interface QueryFailure<T = unknown> {
   readonly suggestions: readonly ErrorSuggestions[];
 }
 
+export interface SuggestionOption {
+  readonly name: string;
+  readonly type?: string | undefined;
+  readonly description?: string | null | undefined;
+  readonly context?: string | undefined;
+}
+
+export interface SuggestionGroup {
+  readonly type: string;
+  readonly message: string;
+  readonly options?: readonly SuggestionOption[];
+}
+
 export interface ErrorSuggestions {
   readonly hasSuggestions: boolean;
-  readonly suggestions?: readonly string[];
+  readonly message?: string;
+  readonly suggestions?: readonly SuggestionGroup[];
+}
+
+export interface ErrorRecovery {
+  readonly type: string;
+  readonly message: string;
+  readonly action?: string;
+  readonly command?: string | null;
 }
 
 export interface ErrorHandlerResult {
   readonly classification: string;
   readonly message: string;
   readonly suggestions?: ErrorSuggestions;
+  readonly recovery?: ErrorRecovery;
 }
 
 export interface ErrorHandler {
