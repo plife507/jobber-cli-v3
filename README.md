@@ -1,118 +1,341 @@
 # jobber-cli v3.0 (TypeScript)
 
-Transport CLI for the Jobber GraphQL API. Strict TypeScript, Zod at boundaries, throttle-aware client, schema-aware error recovery, gated mutation surface.
+TypeScript CLI for the Jobber GraphQL API with:
+- strict runtime validation
+- throttle-aware reads
+- schema exploration helpers
+- gated mutation commands for notes and expenses
+- headless-friendly usage for scripts and agents
+
+This repo is the current v3 CLI for working with Jobber data safely from the terminal, automations, and agent workflows.
 
 ## Status
 
-v3.0 — all 7 phases shipped. Covers the schema/transport command surface (status, token, get, query, search, notes, schema, doctor, job-note, job-expense). Profitability/HTML-report commands from v2.5 are intentionally **not** ported — the reference tree is retained for a future port if needed.
+v3.0 — core transport and operational command surface shipped.
+
+Included command areas:
+- status
+- token check
+- get
+- query
+- search
+- notes
+- schema
+- doctor
+- job-note
+- job-expense
+
+Not ported from older internal tooling:
+- profitability/report rendering flows
+- HTML report generators
+- older KC-specific reporting commands
+
+Those remain out of scope for this repo unless intentionally ported later.
+
+## What this CLI is good for
+
+Use this CLI when you need to:
+- inspect Jobber records from the API
+- search jobs or clients
+- run GraphQL queries with schema validation
+- fetch and analyze the Jobber schema
+- read recent notes
+- create/edit/delete job notes
+- create/edit/delete job expenses
+- run Jobber operations safely in headless/automation contexts
+
+## Prerequisites
+
+- Node.js 18+
+- Yarn 4
+- Python 3 for the OAuth helper
+- A Jobber developer app with API credentials
+
+## Expected workspace layout
+
+This repo expects a shared Jobber workspace layout like this:
+
+```text
+jobber/
+├── .env
+├── tokens/jobber_tokens.json
+├── oauth/
+├── .venv/
+└── jobber-cli-v3/
+```
+
+Where:
+- `jobber-cli-v3/` is this repo
+- `.env` holds shared Jobber credentials
+- `tokens/jobber_tokens.json` is the token cache
+- `oauth/jobber_oauth_manager.py` is the OAuth helper
+- `.venv/` is the Python virtualenv for the OAuth helper
 
 ## Setup
 
+### 1. Install dependencies
+
 ```bash
+cd jobber-cli-v3
 yarn install
-yarn build                           # tsc → dist/
-# shared .env lives at workspace root (../.env) and is also read by v2.5.
-# tokens cached at ../tokens/jobber_tokens.json (shared with v2.5).
+yarn build
 ```
 
-The OAuth Python manager (`../oauth/jobber_oauth_manager.py`) is the one authoritative place tokens live. v3 spawns it via `src/utils/oauth-subprocess.ts` and Zod-validates the stdout. To bootstrap or refresh a token:
+### 2. Create the shared Python venv for OAuth
 
 ```bash
 cd ..
-python3 -m venv .venv && .venv/bin/pip install -r oauth/requirements.txt
-.venv/bin/python oauth/jobber_oauth_manager.py authorize   # first time, opens browser
-.venv/bin/python oauth/jobber_oauth_manager.py refresh     # subsequent refreshes
+python3 -m venv .venv
+.venv/bin/pip install -r oauth/requirements.txt
 ```
 
-The CLI auto-detects `.venv/bin/python` at `../.venv/`; override via `JOBBER_OAUTH_PYTHON=/path/to/python` if yours lives elsewhere.
+### 3. Add credentials to the shared `.env`
 
-## Usage
+At minimum:
+
+```env
+JOBBER_CLIENT_ID=your_client_id
+JOBBER_CLIENT_SECRET=your_client_secret
+JOBBER_ACCESS_TOKEN=
+```
+
+### 4. Bootstrap OAuth once
 
 ```bash
-# via tsx (development)
-yarn dev <command> [args]
-
-# via built bin (production) — requires yarn's PnP loader, so:
-yarn node bin/jobber.js <command> [args]
+cd ..
+.venv/bin/python oauth/jobber_oauth_manager.py authorize
 ```
 
-### Commands
+That first authorize flow may open a browser.
 
-| Command | Role | Writes gate |
-|---|---|---|
-| `status` | Show throttle budget (pings `__typename` to refresh) | — |
-| `token check` | Summarise the cached token (never prints the body) | — |
-| `get <type> <encodedId>` | Fetch job / client / quote / invoice by gid | — |
-| `query "<gql>"` / `query --file <path>` | Run arbitrary GraphQL, schema-validated when a cached schema is present | — |
-| `search <jobs\|clients> <query>` | Search jobs or clients (clients filtered client-side per v2.5) | — |
-| `notes [--limit N] [--notes-per-job N] [--max-notes N]` | Newest-first notes aggregation across recent jobs | — |
-| `schema fetch` / `schema analyze` / `schema help <Type>` | Schema lifecycle (fetch ~45k throttle units) | — |
-| `doctor` | Runtime / env / token health; does NOT call the API | — |
-| `job-note list\|create\|edit\|delete` | Read + mutate notes on a job | create / edit / delete require `JOBBER_WRITES_ENABLED=1` |
-| `job-expense list\|create\|edit\|delete` | Read + mutate expenses on a job | create / edit / delete require `JOBBER_WRITES_ENABLED=1` |
+### 5. Refresh tokens later when needed
 
-### Global flags
+```bash
+cd ..
+.venv/bin/python oauth/jobber_oauth_manager.py refresh
+```
 
-| Flag | Effect |
+## Core usage
+
+### Development entrypoint
+
+```bash
+yarn dev <command> [args...]
+```
+
+### Built CLI entrypoint
+
+```bash
+yarn node bin/jobber.js <command> [args...]
+```
+
+## Canonical headless invocation
+
+For scripts, cron jobs, and agents, use this pattern:
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev <command> [args...] --json
+```
+
+Recommended rules:
+- always set `JOBBER_ENV_PATH` explicitly
+- always set `JOBBER_OAUTH_SKIP_AUTHORIZE=1` in headless mode
+- always use `--json` for machine-readable output
+- never export `JOBBER_WRITES_ENABLED=1` globally
+
+## Commands
+
+| Command | Purpose |
 |---|---|
-| `--json` | Emit machine-readable JSON on stdout |
-| `--help`, `-h` | Print help and exit 0 |
-| `--version`, `-v` | Print version and exit 0 |
+| `status` | Show throttle budget |
+| `token check` | Inspect cached token metadata |
+| `get <type> <gid>` | Fetch a single job/client/quote/invoice by encoded id |
+| `query` | Run arbitrary GraphQL |
+| `search <jobs\|clients> <query>` | Search jobs or clients |
+| `notes` | Aggregate recent notes |
+| `schema fetch\|analyze\|help` | Introspect and inspect the schema |
+| `doctor` | Validate env/runtime health without calling the API |
+| `job-note list\|create\|edit\|delete` | Read and mutate job notes |
+| `job-expense list\|create\|edit\|delete` | Read and mutate job expenses |
 
-### Exit codes
+## Common examples
 
-Matches the v2.5 map (`src/cli.ts` `EXIT_CODES`):
-`0` success · `2` VALIDATION · `3` AUTH · `4` RATE_LIMIT · `5` NOT_FOUND · `6` CONFIG · `7` NON_INTERACTIVE · `10` INTERNAL (includes `WritesDisabledError`).
+### Check health
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev doctor --json
+```
+
+### Check token state
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev token check --json
+```
+
+### Check throttle budget
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev status --json
+```
+
+### Search for a job by visible job number
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev search jobs 20459 --json
+```
+
+### Fetch a record by encoded id
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev get job Z2lkOi8vSm9iYmVyL0pvYi8xNDI1MzU5NjU= --json
+```
+
+### Run a GraphQL query
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev query 'query { account { id } }' --json
+```
+
+### Run a query from file
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev query --file ./my-query.graphql --json
+```
+
+### List notes for a job
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev job-note list 20459 --json
+```
 
 ## Writes gate
 
-Mutations refuse by default:
+Mutations are intentionally disabled by default.
 
-```
-$ yarn dev job-expense create 12241 --title "x" --date 2026-04-17 --total 1
-Error: Mutations are disabled. Set JOBBER_WRITES_ENABLED=1 in your .env to enable writes against the Jobber API.
-(exit 10)
-```
+For a single write call, enable writes inline only for that invocation:
 
-Every mutation path in `src/commands/{job-note,job-expense}.ts` calls `requireWritesEnabled(ctx.config)` before touching `queryExecutor.execute`. Proven by `test/commands/*.test.ts` and by the Phase 6 live run on job 12241 (`phases/phase-6-cutover.md`).
-
-## Architecture
-
-```
-src/
-├── core/        Config, Logger, ThrottleManager, RateLimiter, JobberClient, CostReference
-├── query/       QueryExecutor (QueryResult<T>), QueryBuilder, QueryValidator
-├── schema/      SchemaCache, SchemaAnalyzer, SchemaManager, IncrementalIntrospector
-├── error/       ErrorHandler (implements the Phase 2 interface)
-├── commands/    BaseCommand, writes-gate, registry, status/token/get/query/search/notes/schema/doctor/job-note/job-expense
-├── utils/       Logger, token-utils, env-writer, oauth-subprocess
-└── types/       Generated GraphQL types (codegen from reference/.cache/jobber_schema.graphql)
+```bash
+JOBBER_WRITES_ENABLED=1 \
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev job-note create 20459 --message "hello" --json
 ```
 
-**Phase boundaries** live in `phases/*.md` with gate evidence. `TODO.md` is the active operational doc.
+Do **not** set `JOBBER_WRITES_ENABLED=1` globally in your shell profile or shared environment.
 
-## Workspace layout
+## Schema introspection
 
-```
-jobber/
-├── .env                                  shared with v2.5
-├── tokens/jobber_tokens.json             shared with v2.5
-├── oauth/                                python OAuth manager (not ported)
-├── .venv/                                local python venv for OAuth
-└── jobber-cli-v3/
-    ├── src/                              v3.0 TS source
-    ├── dist/                             tsc output (gitignored)
-    ├── bin/jobber.js                     CLI entry
-    ├── reference/jobber-cli/             v2.5 JS reference — preserved,
-                                          source for a future calculation-
-                                          module port
-    └── phases/                           gated phase docs
+Schema introspection is expensive and should be treated as a setup/discovery step, not something you run on every sync.
+
+### Fetch the schema cache once
+
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev schema fetch --json
 ```
 
-## Out of scope for v3.0
+### Analyze the cached schema
 
-These v2.5 commands are deliberately **not** ported — they depend on calculation/rendering layers the v3 project is not re-implementing:
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev schema analyze --json
+```
 
-`creport`, `batch-html-report`, `client-report`, `visits-report`, `analyze-line-items`, `sort-jobs`, `searchpp`, `list-ar-jobs`, `map-schema`, `test-api`, `test-comprehensive`, `ProfitabilityCalculator`, HTML report templates, theme/widget renderer.
+### Inspect a specific type
 
-The `reference/jobber-cli/` tree is retained so any of these can be ported later without re-cloning v2.5.
+```bash
+JOBBER_ENV_PATH=/abs/path/to/jobber/.env \
+JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
+yarn dev schema help Job --json
+```
+
+Use schema introspection to discover:
+- root queries
+- exact field names
+- pagination shape
+- nested entity structure
+- which fields should be split into cheaper follow-up reads
+
+## Rate limits and backoff
+
+Jobber uses throttle/query-cost behavior, not just naive request counting.
+
+Practical guidance:
+- keep queries narrow
+- paginate aggressively
+- avoid very deep nested queries when possible
+- prefer multiple smaller reads over one oversized expensive query
+- inspect throttle budget before large batches
+- let the CLI's built-in throttle handling work before adding wrapper retries
+
+Recommended wrapper behavior:
+- check exit code before parsing stdout
+- treat exit code `4` as throttle/rate-limit exhaustion
+- back off generously before retrying
+- do not stack tight custom retry loops on top of the CLI's own retry logic
+
+## Exit codes
+
+| Code | Meaning |
+|---:|---|
+| `0` | success |
+| `2` | validation error |
+| `3` | auth failure |
+| `4` | rate limit / throttle |
+| `5` | not found |
+| `6` | config error |
+| `7` | non-interactive block |
+| `10` | internal error, including writes-disabled refusal |
+
+## Recommended automation posture
+
+For production-style automation:
+1. run `doctor --json`
+2. run `token check --json`
+3. optionally check `status --json` before a batch
+4. resolve ids with `search`
+5. perform reads in narrow paginated chunks
+6. gate writes inline per command only when truly intended
+7. capture stdout/stderr separately in wrappers
+8. branch on exit code, not prose text
+
+## Local scripts
+
+```bash
+yarn build
+yarn typecheck
+yarn test
+```
+
+## Docs worth reading
+
+- `docs/agent-usage.md`
+- `docs/headless-usage.md`
+- `TODO.md`
+- `phases/`
+
+## Notes
+
+- This repo is designed to be safe for scripted and agent-driven use.
+- If OAuth authorization itself is required, a human browser step may still be necessary.
+- For high-volume sync systems, treat schema fetches and nested note-heavy queries as expensive operations.
