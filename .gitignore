@@ -9,6 +9,15 @@ schema-cache.json
 coverage/
 *.tsbuildinfo
 
+# Local agent/operator scratch files
+.cache/
+.tmp/
+tmp/
+.tmp_*
+tmp-*
+kc_jobs_*.graphql
+PHASES-7-11.md
+
 # Yarn 4 — https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
 .yarn/*
 !.yarn/patches
