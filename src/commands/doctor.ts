@@ -91,7 +91,7 @@ export class DoctorCommand {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       warnings.push(`Config could not be loaded: ${message}`);
-      recommendations.push('Create .env with JOBBER_ACCESS_TOKEN (jobber token oauth-authorize).');
+      recommendations.push('Create .env or run: jobber token oauth-authorize.');
     }
 
     const cwd = process.cwd();
@@ -112,9 +112,7 @@ export class DoctorCommand {
     }
     if (!auth.present) {
       warnings.push('JOBBER_ACCESS_TOKEN is missing');
-      recommendations.push(
-        'Run: jobber token oauth-authorize  (Phase 5+) or set JOBBER_ACCESS_TOKEN in .env.',
-      );
+      recommendations.push('Run: jobber token oauth-authorize or set JOBBER_ACCESS_TOKEN in .env.');
       if (!pythonVenvReady) {
         warnings.push('Python venv for OAuth not found at ../.venv');
         recommendations.push(
@@ -126,7 +124,7 @@ export class DoctorCommand {
       recommendations.push('Replace with a valid JWT from Jobber developer portal.');
     } else if (auth.expired) {
       warnings.push('JOBBER_ACCESS_TOKEN is expired');
-      recommendations.push('Refresh via OAuth (Phase 5+ token command).');
+      recommendations.push('Refresh via OAuth: jobber token oauth-refresh.');
     }
 
     const report: DoctorReport = {

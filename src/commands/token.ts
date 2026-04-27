@@ -1,3 +1,4 @@
+import { OAuthSubprocessError, runOAuthManagerCommand } from '../utils/oauth-subprocess.js';
 import {
   decodeToken,
   expiresSoon,
@@ -7,10 +8,8 @@ import {
 } from '../utils/token-utils.js';
 import { BaseCommand, type BaseCommandContext } from './base-command.js';
 
-// Ported from reference/jobber-cli/commands/token.js. Phase 4 ships only the
-// non-interactive `check` subcommand. `update`, `oauth-authorize`, and
-// `oauth-refresh` — which require env-file writes, interactive prompts, or
-// browser auth — are deferred to Phase 5 and throw a clear error here.
+// Ported from reference/jobber-cli/commands/token.js. v3 owns token inspection
+// and delegates OAuth authorize/refresh to the shared workspace OAuth manager.
 
 export type TokenAction = 'check' | 'update' | 'oauth-refresh' | 'oauth-authorize';
 
@@ -30,6 +29,12 @@ export interface TokenCheckResult {
   readonly userId: string | null;
   readonly accountId: string | number | null;
   readonly clientId: string | null;
+}
+
+export interface TokenOAuthResult {
+  readonly action: 'oauth-authorize' | 'oauth-refresh';
+  readonly ok: true;
+  readonly token: TokenCheckResult;
 }
 
 function summarize(token: string): TokenCheckResult {
@@ -87,19 +92,23 @@ function summarize(token: string): TokenCheckResult {
   };
 }
 
-export class TokenCommand extends BaseCommand<TokenCheckResult, TokenArgs> {
+export class TokenCommand extends BaseCommand<TokenCheckResult | TokenOAuthResult, TokenArgs> {
   protected async run(
     args: TokenArgs,
-    { config, logger }: BaseCommandContext,
-  ): Promise<TokenCheckResult> {
+    context: BaseCommandContext,
+  ): Promise<TokenCheckResult | TokenOAuthResult> {
     const action = args.action ?? 'check';
+    if (action === 'oauth-authorize' || action === 'oauth-refresh') {
+      return this.runOAuthAction(action, args, context);
+    }
     if (action !== 'check') {
       throw new Error(
-        `'jobber token ${action}' is not available in Phase 4. Supported: 'check'. Others land in Phase 5.`,
+        `'jobber token ${action}' is not available. Supported: check, oauth-refresh, oauth-authorize.`,
       );
     }
 
-    const token = config.JOBBER_ACCESS_TOKEN;
+    const { config, logger, tokenProvider } = context;
+    const token = tokenProvider ? await tokenProvider() : config.JOBBER_ACCESS_TOKEN;
     if (!token || token.length === 0) {
       logger.error('No access token configured');
       logger.info('Run: jobber token oauth-authorize  (or set JOBBER_ACCESS_TOKEN in .env)');
@@ -141,4 +150,53 @@ export class TokenCommand extends BaseCommand<TokenCheckResult, TokenArgs> {
     }
     return status;
   }
+
+  private async runOAuthAction(
+    action: 'oauth-authorize' | 'oauth-refresh',
+    args: TokenArgs,
+    { config, logger, tokenProvider }: BaseCommandContext,
+  ): Promise<TokenOAuthResult> {
+    const managerAction = action === 'oauth-authorize' ? 'authorize' : 'refresh';
+    try {
+      await runOAuthManagerCommand(managerAction, {
+        stdio: action === 'oauth-authorize' ? 'inherit' : 'pipe',
+      });
+    } catch (err) {
+      if (err instanceof OAuthSubprocessError) {
+        const detail = sanitizeOAuthManagerError(err);
+        throw new Error(`Jobber OAuth ${managerAction} failed: ${detail}`);
+      }
+      throw err;
+    }
+
+    const token = tokenProvider ? await tokenProvider() : config.JOBBER_ACCESS_TOKEN;
+    if (!token || token.length === 0) {
+      throw new Error('OAuth completed but no Jobber access token is available.');
+    }
+
+    const result: TokenOAuthResult = {
+      action,
+      ok: true,
+      token: summarize(token),
+    };
+
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      logger.success(`Jobber OAuth ${managerAction} complete`);
+      logger.info(`  Status: ${result.token.expiresIn ?? 'token present'}`);
+    }
+    return result;
+  }
+}
+
+function sanitizeOAuthManagerError(err: OAuthSubprocessError): string {
+  const raw = err.stderr.trim() || err.message;
+  return (
+    raw
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\[ERROR\]\s*/i, '').trim())
+      .filter(Boolean)
+      .at(-1) ?? err.message
+  );
 }

@@ -129,6 +129,42 @@ describe('JobExpenseCommand — writes gate', () => {
     expect(bodies[0] ?? '').toContain('expenseCreate');
   });
 
+  it('normalizes date-only inputs to midday UTC to avoid local off-by-one shifts', async () => {
+    const bodies: string[] = [];
+    const fetchImpl: FetchLike = async (_url, init) => {
+      bodies.push(init.body ?? '');
+      return jsonResponse({
+        data: {
+          expenseCreate: {
+            expense: {
+              id: 'e-1',
+              title: 'gas',
+              description: null,
+              date: '2026-04-17T12:00:00Z',
+              total: 42.5,
+              linkedJob: { id: 'Z2lkOi8v-job-x', jobNumber: 42 },
+              reimbursableTo: null,
+            },
+            userErrors: [],
+          },
+        },
+        extensions: throttleEnv,
+      });
+    };
+    const cmd = new JobExpenseCommand({ context: buildContext(fetchImpl, true) });
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await cmd.execute({
+      action: 'create',
+      job: 'Z2lkOi8v-job-x',
+      title: 'gas',
+      date: '2026-04-17',
+      total: 42.5,
+      json: true,
+    });
+    spy.mockRestore();
+    expect(bodies[0] ?? '').toContain('2026-04-17T12:00:00Z');
+  });
+
   it('rejects invalid --total values', async () => {
     const fetchImpl: FetchLike = async () => jsonResponse({ data: null, extensions: throttleEnv });
     const cmd = new JobExpenseCommand({ context: buildContext(fetchImpl, true) });

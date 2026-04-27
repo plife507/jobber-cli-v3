@@ -102,8 +102,7 @@ JOBBER_ACCESS_TOKEN=
 ### 4. Bootstrap OAuth once
 
 ```bash
-cd ..
-.venv/bin/python oauth/jobber_oauth_manager.py authorize
+yarn dev token oauth-authorize
 ```
 
 That first authorize flow may open a browser.
@@ -111,8 +110,7 @@ That first authorize flow may open a browser.
 ### 5. Refresh tokens later when needed
 
 ```bash
-cd ..
-.venv/bin/python oauth/jobber_oauth_manager.py refresh
+yarn dev token oauth-refresh --json
 ```
 
 ## Core usage
@@ -151,6 +149,8 @@ Recommended rules:
 |---|---|
 | `status` | Show throttle budget |
 | `token check` | Inspect cached token metadata |
+| `token oauth-refresh` | Refresh through the shared OAuth manager |
+| `token oauth-authorize` | Start a fresh browser OAuth authorization |
 | `get <type> <gid>` | Fetch a single job/client/quote/invoice by encoded id |
 | `query` | Run arbitrary GraphQL |
 | `search <jobs\|clients> <query>` | Search jobs or clients |

@@ -32,7 +32,7 @@ refresh **before** the caller's first call, not reactively:
 ```bash
 # Run on a cron (e.g. every 30 minutes), not per-call
 JOBBER_ENV_PATH=/abs/.env JOBBER_OAUTH_SKIP_AUTHORIZE=1 \
-  /path/to/.venv/bin/python /path/to/oauth/jobber_oauth_manager.py refresh
+  jobber token oauth-refresh --json
 ```
 
 If the refresh token itself has expired, no automation can fix it — the

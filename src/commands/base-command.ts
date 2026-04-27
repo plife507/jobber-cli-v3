@@ -29,6 +29,7 @@ export interface BaseCommandContext {
   readonly schemaManager: SchemaManager;
   readonly errorHandler: ErrorHandler;
   readonly queryExecutor: QueryExecutor;
+  readonly tokenProvider?: () => Promise<string>;
 }
 
 export interface BaseCommandOptions {
@@ -67,11 +68,12 @@ export abstract class BaseCommand<TResult = unknown, TArgs = unknown> {
     const throttleManager = new ThrottleManager();
     const rateLimiter = new RateLimiter(throttleManager);
     const tokenProvider = this.tokenProviderOverride ?? buildTokenProvider(config, logger);
+    const resolvedTokenProvider = async (): Promise<string> => tokenProvider();
 
     const client = new JobberClient({
       endpoint: config.JOBBER_API_URL,
       version: config.JOBBER_API_VERSION,
-      token: tokenProvider,
+      token: resolvedTokenProvider,
       throttleManager,
       rateLimiter,
       logger,
@@ -90,6 +92,7 @@ export abstract class BaseCommand<TResult = unknown, TArgs = unknown> {
       schemaManager,
       errorHandler,
       queryExecutor,
+      tokenProvider: resolvedTokenProvider,
     };
     this.initialized = true;
     return this.context;
@@ -169,6 +172,9 @@ function buildTokenProvider(config: Config, logger: Logger): () => Promise<strin
     } catch (err) {
       if (err instanceof OAuthSubprocessError) {
         logger.debug(`OAuth subprocess unavailable: ${err.message}`);
+        if (isTerminalOAuthAuthFailure(err)) {
+          throw new Error(`Jobber OAuth refresh failed: ${sanitizeOAuthError(err)}`);
+        }
       } else {
         logger.debug(
           `OAuth subprocess failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -185,4 +191,25 @@ function buildTokenProvider(config: Config, logger: Logger): () => Promise<strin
       'No Jobber access token available. Run `jobber token oauth-authorize` or set JOBBER_ACCESS_TOKEN in .env.',
     );
   };
+}
+
+function isTerminalOAuthAuthFailure(err: OAuthSubprocessError): boolean {
+  const text = `${err.message}\n${err.stderr}`.toLowerCase();
+  return (
+    text.includes('refresh token expired') ||
+    text.includes('refresh token expired or invalid') ||
+    text.includes('refresh token invalid') ||
+    text.includes('token invalid or expired') ||
+    text.includes('re-authorize')
+  );
+}
+
+function sanitizeOAuthError(err: OAuthSubprocessError): string {
+  const raw = err.stderr.trim() || err.message;
+  const actionable = raw
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\[ERROR\]\s*/i, '').trim())
+    .filter(Boolean)
+    .at(-1);
+  return actionable ?? 'Run `jobber token oauth-authorize`.';
 }

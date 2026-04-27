@@ -37,6 +37,19 @@ export interface GetTokenOptions {
   readonly spawnImpl?: typeof spawn;
 }
 
+export type OAuthManagerCommand = 'authorize' | 'refresh' | 'status';
+
+export interface RunOAuthManagerCommandOptions extends GetTokenOptions {
+  /** Use inherited stdio for interactive commands that need to surface a link. */
+  readonly stdio?: 'pipe' | 'inherit';
+}
+
+export interface OAuthManagerCommandResult {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly code: number;
+}
+
 export class OAuthSubprocessError extends Error {
   readonly stderr: string;
   readonly code: number | null;
@@ -138,6 +151,75 @@ export async function getAccessToken(options: GetTokenOptions = {}): Promise<str
       } catch (err) {
         rejectPromise(err);
       }
+    });
+  });
+}
+
+export async function runOAuthManagerCommand(
+  command: OAuthManagerCommand,
+  options: RunOAuthManagerCommandOptions = {},
+): Promise<OAuthManagerCommandResult> {
+  const managerPath = options.managerPath ?? defaultManagerPath();
+  const envBag = options.env ?? process.env;
+  const python =
+    options.python ?? envBag.JOBBER_OAUTH_PYTHON ?? detectWorkspaceVenvPython() ?? 'python3';
+  const timeoutMs = options.timeoutMs ?? 300_000;
+  const spawnFn = options.spawnImpl ?? spawn;
+  const inherit = options.stdio === 'inherit';
+  const spawnOpts: SpawnOptions = {
+    env: envBag,
+    stdio: inherit ? ['ignore', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
+  };
+
+  return new Promise<OAuthManagerCommandResult>((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let stdout = '';
+    let stderr = '';
+
+    const child = spawnFn(python, [managerPath, command], spawnOpts);
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      rejectPromise(
+        new OAuthSubprocessError(`OAuth subprocess timed out after ${timeoutMs}ms`, stderr, null),
+      );
+    }, timeoutMs);
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectPromise(
+        new OAuthSubprocessError(`Failed to spawn OAuth subprocess: ${err.message}`, stderr, null),
+      );
+    });
+
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+
+      if (code !== 0) {
+        rejectPromise(
+          new OAuthSubprocessError(
+            `OAuth subprocess exited with code ${code}: ${stderr.trim() || '(no stderr)'}`,
+            stderr,
+            code,
+          ),
+        );
+        return;
+      }
+
+      resolvePromise({ stdout, stderr, code: code ?? 0 });
     });
   });
 }

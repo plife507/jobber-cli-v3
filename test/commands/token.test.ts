@@ -29,7 +29,7 @@ function makeJwt(expSecondsFromNow: number): string {
   return `${header}.${payload}.signature`;
 }
 
-function buildContext(token: string) {
+function buildContext(token: string, tokenProvider?: () => Promise<string>) {
   const throttleManager = new ThrottleManager();
   const rateLimiter = new RateLimiter(throttleManager);
   const fetchImpl: FetchLike = async () =>
@@ -62,6 +62,7 @@ function buildContext(token: string) {
     schemaManager,
     errorHandler,
     queryExecutor,
+    tokenProvider,
   };
 }
 
@@ -100,6 +101,27 @@ describe('TokenCommand — check', () => {
     expect(result.valid).toBe(false);
   });
 
+  it('checks the resolved OAuth token when a token provider is available', async () => {
+    const expiredEnvToken = makeJwt(-10);
+    const refreshedOAuthToken = makeJwt(3_600);
+    const context = buildContext(expiredEnvToken, async () => refreshedOAuthToken);
+    const cmd = new TokenCommand({ context });
+    const result = await cmd.execute({ action: 'check', json: true });
+    expect(result.expired).toBe(false);
+    expect(result.valid).toBe(true);
+  });
+
+  it('surfaces terminal OAuth refresh failures instead of falling back to stale env metadata', async () => {
+    const expiredEnvToken = makeJwt(-10);
+    const context = buildContext(expiredEnvToken, async () => {
+      throw new Error('Jobber OAuth refresh failed: Refresh token expired. Run: jobber token oauth-authorize');
+    });
+    const cmd = new TokenCommand({ context });
+    await expect(cmd.execute({ action: 'check', json: true })).rejects.toThrow(
+      /Refresh token expired/,
+    );
+  });
+
   it('returns present=false when no token is configured', async () => {
     const context = buildContext('dummy-jwt-token-for-client-init');
     // Override config to simulate no token present.
@@ -109,10 +131,10 @@ describe('TokenCommand — check', () => {
     expect(result.present).toBe(false);
   });
 
-  it('rejects non-check actions in Phase 4 with a clear error', async () => {
+  it('rejects unsupported token actions with a clear error', async () => {
     const token = makeJwt(3_600);
     const context = buildContext(token);
     const cmd = new TokenCommand({ context });
-    await expect(cmd.execute({ action: 'update' })).rejects.toThrow(/not available in Phase 4/);
+    await expect(cmd.execute({ action: 'update' })).rejects.toThrow(/Supported: check, oauth-refresh, oauth-authorize/);
   });
 });

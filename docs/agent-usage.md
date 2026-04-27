@@ -149,8 +149,13 @@ jobber token check --json
 }
 ```
 
-The token body itself is **never** emitted. If `expired: true`, refresh via
-the OAuth manager before any call.
+The token body itself is **never** emitted. If `expired: true`, run:
+
+```bash
+jobber token oauth-refresh --json
+```
+
+If the refresh token itself is expired, run `jobber token oauth-authorize` with human browser approval.
 
 ### `get <type> <gid>` — fetch a single entity
 

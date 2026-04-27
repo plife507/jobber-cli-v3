@@ -92,6 +92,94 @@ function parseTotal(raw: unknown, fallback: number | undefined): number | undefi
   return n;
 }
 
+interface ExpenseProfile {
+  readonly key: string;
+  readonly fixedTitle: string;
+  readonly accountingCodeId: string;
+  readonly titleMatcher: (title: string) => boolean;
+  readonly vendorExtractor?: (title: string) => string | null;
+}
+
+const EXPENSE_PROFILES: readonly ExpenseProfile[] = [
+  {
+    key: 'subcontractors',
+    fixedTitle: 'Sub',
+    accountingCodeId: 'MTExMTYy',
+    titleMatcher: (title) => /^sub(?:contractor)?(?:\s|$)/i.test(title.trim()),
+    vendorExtractor: (title) => {
+      const match = title.trim().match(/^sub(?:contractor)?\s+(.+)$/i);
+      if (!match) return null;
+      const vendor = match[1]?.trim();
+      return vendor ? vendor : null;
+    },
+  },
+];
+
+function normalizeDate(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const value = String(raw).trim();
+  if (!value) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T12:00:00Z`;
+  const usMatch = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (usMatch) {
+    const [, mm, dd, yyyy] = usMatch;
+    if (mm && dd && yyyy) {
+      const month = mm.padStart(2, '0');
+      const day = dd.padStart(2, '0');
+      return `${yyyy}-${month}-${day}T12:00:00Z`;
+    }
+  }
+  return value;
+}
+
+function normalizeWhitespace(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+function resolveExpenseProfile(title: unknown, accountingCodeId: unknown): ExpenseProfile | null {
+  if (typeof accountingCodeId === 'string') {
+    const byCode = EXPENSE_PROFILES.find((profile) => profile.accountingCodeId === accountingCodeId);
+    if (byCode) return byCode;
+  }
+  if (typeof title !== 'string') return null;
+  return EXPENSE_PROFILES.find((profile) => profile.titleMatcher(title)) ?? null;
+}
+
+function descriptionStartsWithVendor(description: string, vendor: string): boolean {
+  return description.toLowerCase().startsWith(`${vendor.toLowerCase()} -`);
+}
+
+function normalizeProfiledExpenseInput(input: Record<string, unknown>, args: JobExpenseArgs): void {
+  const title = typeof input.title === 'string' ? input.title : undefined;
+  const accountingCodeId = typeof input.accountingCodeId === 'string' ? input.accountingCodeId : undefined;
+  const profile = resolveExpenseProfile(title, accountingCodeId);
+  if (!profile) return;
+
+  input.title = profile.fixedTitle;
+  input.accountingCodeId = profile.accountingCodeId;
+
+  const vendor = title && profile.vendorExtractor ? profile.vendorExtractor(title) : null;
+  const currentDescription =
+    typeof input.description === 'string'
+      ? normalizeWhitespace(input.description)
+      : typeof args.description === 'string'
+        ? normalizeWhitespace(args.description)
+        : '';
+
+  if (vendor && currentDescription && !descriptionStartsWithVendor(currentDescription, vendor)) {
+    input.description = `${vendor} - ${currentDescription}`;
+  } else if (vendor && !currentDescription) {
+    input.description = vendor;
+  } else if (currentDescription) {
+    input.description = currentDescription;
+  }
+}
+
 function buildInput(
   args: JobExpenseArgs,
   options: { requireTitleDate?: boolean; defaultTotal?: number } = {},
@@ -103,7 +191,8 @@ function buildInput(
   }
   const input: Record<string, unknown> = {};
   if (args.title !== undefined) input.title = args.title;
-  if (args.date !== undefined) input.date = args.date;
+  const normalizedDate = normalizeDate(args.date);
+  if (normalizedDate !== undefined) input.date = normalizedDate;
   if (args.description !== undefined) input.description = args.description;
 
   const total = parseTotal(args.total, options.defaultTotal);
@@ -117,6 +206,8 @@ function buildInput(
 
   const clear = args.clearReimbursableTo ?? args['clear-reimbursable-to'];
   if (clear === true) input.reimbursableToId = null;
+
+  normalizeProfiledExpenseInput(input, args);
 
   return input;
 }
