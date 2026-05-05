@@ -8,7 +8,12 @@ import { QueryExecutor } from '../query/query-executor.js';
 import { SchemaManager } from '../schema/schema-manager.js';
 import type { Logger } from '../utils/logger.js';
 import { createLogger } from '../utils/logger.js';
-import { OAuthSubprocessError, getAccessToken } from '../utils/oauth-subprocess.js';
+import {
+  OAuthSubprocessError,
+  getAccessToken,
+  runOAuthManagerCommand,
+} from '../utils/oauth-subprocess.js';
+import { expiresSoon } from '../utils/token-utils.js';
 
 // Ported from reference/jobber-cli/commands/_base.js. Composes the Phase 1-3
 // primitives into a single injection point that commands extend. Handles
@@ -159,14 +164,32 @@ export abstract class BaseCommand<TResult = unknown, TArgs = unknown> {
   }
 }
 
-function buildTokenProvider(config: Config, logger: Logger): () => Promise<string> {
+interface TokenProviderDependencies {
+  readonly getAccessToken?: typeof getAccessToken;
+  readonly runOAuthManagerCommand?: typeof runOAuthManagerCommand;
+  readonly refreshWindowHours?: number;
+}
+
+export function buildTokenProvider(
+  config: Config,
+  logger: Logger,
+  dependencies: TokenProviderDependencies = {},
+): () => Promise<string> {
+  const refreshWindowHours = dependencies.refreshWindowHours ?? 15 / 60;
+  const getOAuthAccessToken = dependencies.getAccessToken ?? getAccessToken;
+  const runOAuthCommand = dependencies.runOAuthManagerCommand ?? runOAuthManagerCommand;
   let cachedToken: string | null = null;
   return async (): Promise<string> => {
-    if (cachedToken) return cachedToken;
+    if (cachedToken && !expiresSoon(cachedToken, refreshWindowHours)) return cachedToken;
 
     // Try OAuth subprocess first (keeps parity with v2.5's BaseCommand init order).
     try {
-      const token = await getAccessToken({});
+      let token = await getOAuthAccessToken({});
+      if (expiresSoon(token, refreshWindowHours)) {
+        logger.debug('Jobber OAuth access token expires soon; refreshing automatically.');
+        await runOAuthCommand('refresh', { stdio: 'pipe' });
+        token = await getOAuthAccessToken({});
+      }
       cachedToken = token;
       return token;
     } catch (err) {

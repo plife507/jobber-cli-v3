@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  BaseCommand,
+  type BaseCommandContext,
+  buildTokenProvider,
+} from '../../src/commands/base-command.js';
+import {
   type FetchLike,
   type FetchResponseLike,
   JobberClient,
 } from '../../src/core/jobber-client.js';
-import { BaseCommand, type BaseCommandContext } from '../../src/commands/base-command.js';
+import { RateLimiter } from '../../src/core/rate-limiter.js';
+import { ThrottleManager } from '../../src/core/throttle-manager.js';
 import { ErrorHandler } from '../../src/error/error-handler.js';
 import { QueryExecutor } from '../../src/query/query-executor.js';
-import { RateLimiter } from '../../src/core/rate-limiter.js';
 import { SchemaManager } from '../../src/schema/schema-manager.js';
-import { ThrottleManager } from '../../src/core/throttle-manager.js';
 import { createLogger } from '../../src/utils/logger.js';
 
 function jsonResponse(body: unknown): FetchResponseLike {
@@ -19,6 +23,17 @@ function jsonResponse(body: unknown): FetchResponseLike {
     text: async () => JSON.stringify(body),
     json: async () => body,
   };
+}
+
+function makeJwt(expSecondsFromNow: number): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'utf-8').toString(
+    'base64url',
+  );
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expSecondsFromNow }),
+    'utf-8',
+  ).toString('base64url');
+  return `${header}.${payload}.signature`;
 }
 
 function buildContext(): BaseCommandContext {
@@ -77,6 +92,29 @@ class HappyCommand extends BaseCommand<string, unknown> {
     this.cleanupRan = true;
   }
 }
+
+describe('buildTokenProvider', () => {
+  it('automatically refreshes OAuth tokens inside the refresh window', async () => {
+    const ctx = buildContext();
+    const expiringToken = makeJwt(60);
+    const freshToken = makeJwt(3_600);
+    const getOAuthAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce(expiringToken)
+      .mockResolvedValueOnce(freshToken);
+    const runOAuthCommand = vi.fn().mockResolvedValue({ stdout: '', stderr: '', code: 0 });
+    const provider = buildTokenProvider(ctx.config, ctx.logger, {
+      getAccessToken: getOAuthAccessToken,
+      runOAuthManagerCommand: runOAuthCommand,
+    });
+
+    await expect(provider()).resolves.toBe(freshToken);
+    await expect(provider()).resolves.toBe(freshToken);
+    expect(runOAuthCommand).toHaveBeenCalledOnce();
+    expect(runOAuthCommand).toHaveBeenCalledWith('refresh', { stdio: 'pipe' });
+    expect(getOAuthAccessToken).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('BaseCommand lifecycle', () => {
   it('runs cleanup even when run() throws', async () => {
